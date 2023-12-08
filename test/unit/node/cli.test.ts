@@ -102,8 +102,6 @@ describe("parser", () => {
 
           "--disable-file-downloads",
 
-          "--disable-getting-started-override",
-
           "--disable-proxy",
 
           ["--session-socket", "/tmp/override-code-server-ipc-socket"],
@@ -125,7 +123,6 @@ describe("parser", () => {
         value: path.resolve("path/to/cert"),
       },
       "disable-file-downloads": true,
-      "disable-getting-started-override": true,
       "disable-proxy": true,
       enable: ["feature1", "feature2"],
       help: true,
@@ -380,7 +377,6 @@ describe("parser", () => {
     const defaultArgs = await setDefaults(args)
     expect(defaultArgs).toEqual({
       ...defaults,
-      "disable-getting-started-override": true,
     })
   })
 
@@ -392,7 +388,6 @@ describe("parser", () => {
     const defaultArgs = await setDefaults(args)
     expect(defaultArgs).toEqual({
       ...defaults,
-      "disable-getting-started-override": true,
     })
   })
 
