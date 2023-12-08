@@ -19,98 +19,595 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  import { ICommandService } from 'vs/platform/commands/common/commands';
  import { IProductService } from 'vs/platform/product/common/productService';
  import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-@@ -59,7 +59,7 @@ import { GettingStartedIndexList } from
+@@ -27,11 +27,8 @@ import { IStorageService, StorageScope,
+ import { CancellationToken } from 'vs/base/common/cancellation';
+ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
++import { IRecentFolder, IRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
+ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
+-import { IWindowOpenable } from 'vs/platform/window/common/window';
+-import { splitRecentLabel } from 'vs/base/common/labels';
+ import { IHostService } from 'vs/workbench/services/host/browser/host';
+ import { isMacintosh } from 'vs/base/common/platform';
+ import { Delayer, Throttler } from 'vs/base/common/async';
+@@ -59,24 +56,17 @@ import { GettingStartedIndexList } from
  import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
  import { KeyCode } from 'vs/base/common/keyCodes';
  import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 -import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-+import { IsEnabledCoderGettingStarted, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
  import { OpenFolderAction, OpenFileFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
  import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
- import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-@@ -793,6 +793,72 @@ export class GettingStartedPage extends
- 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
+-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+ import { Codicon } from 'vs/base/common/codicons';
+ import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
+ import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+-import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+-import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/featuredExtensionService';
+-import { IFeaturedExtension } from 'vs/base/common/product';
+-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+-import { onUnexpectedError } from 'vs/base/common/errors';
++import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
++import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+ 
+ const SLIDE_TRANSITION_TIME_MS = 250;
+-const configurationKey = 'workbench.startupEditor';
+ 
+ export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
+ export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
+@@ -132,9 +122,7 @@ export class GettingStartedPage extends
+ 
+ 	// Ensure that the these are initialized before use.
+ 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
+-	private recentlyOpened!: Promise<IRecentlyOpened>;
+ 	private gettingStartedCategories!: IResolvedWalkthrough[];
+-	private featuredExtensions!: Promise<IFeaturedExtension[]>;
+ 
+ 	private currentWalkthrough: IResolvedWalkthrough | undefined;
+ 
+@@ -153,7 +141,6 @@ export class GettingStartedPage extends
+ 	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
+ 	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
+ 	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
+-	private featuredExtensionsList?: GettingStartedIndexList<IFeaturedExtension>;
+ 
+ 	private stepsSlide!: HTMLElement;
+ 	private categoriesSlide!: HTMLElement;
+@@ -172,7 +159,6 @@ export class GettingStartedPage extends
+ 		@IProductService private readonly productService: IProductService,
+ 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+ 		@IWalkthroughsService private readonly gettingStartedService: IWalkthroughsService,
+-		@IFeaturedExtensionsService private readonly featuredExtensionService: IFeaturedExtensionsService,
+ 		@IConfigurationService private readonly configurationService: IConfigurationService,
+ 		@ITelemetryService telemetryService: ITelemetryService,
+ 		@ILanguageService private readonly languageService: ILanguageService,
+@@ -186,13 +172,10 @@ export class GettingStartedPage extends
+ 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
+ 		@IContextKeyService contextService: IContextKeyService,
+ 		@IQuickInputService private quickInputService: IQuickInputService,
+-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
+-		@ILabelService private readonly labelService: ILabelService,
+ 		@IHostService private readonly hostService: IHostService,
+ 		@IWebviewService private readonly webviewService: IWebviewService,
+ 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService) {
++		@IAccessibilityService private readonly accessibilityService: IAccessibilityService) {
+ 
+ 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
+ 
+@@ -213,14 +196,12 @@ export class GettingStartedPage extends
+ 		inWelcomeContext.bindTo(this.contextService).set(true);
+ 
+ 		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+-		this.featuredExtensions = this.featuredExtensionService.getExtensions();
+ 
+ 		this._register(this.dispatchListeners);
+ 		this.buildSlideThrottle = new Throttler();
+ 
+ 		const rerender = () => {
+ 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+-			this.featuredExtensions = this.featuredExtensionService.getExtensions();
+ 			if (this.currentWalkthrough) {
+ 				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
+ 				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
+@@ -235,24 +216,9 @@ export class GettingStartedPage extends
+ 			}
+ 		};
+ 
+-		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
+-			for (const e of result) {
+-				const installedFeaturedExtension = (await this.featuredExtensions)?.find(ext => ExtensionIdentifier.equals(ext.id, e.identifier.id));
+-				if (installedFeaturedExtension) {
+-					this.hideExtension(e.identifier.id);
+-				}
+-			}
+-		}));
+-
+ 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
+ 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
+ 
+-		this.recentlyOpened = this.workspacesService.getRecentlyOpened();
+-		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
+-			this.recentlyOpened = workspacesService.getRecentlyOpened();
+-			rerender();
+-		}));
+-
+ 		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
+ 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
+ 			if (!ourCategory) { return; }
+@@ -452,7 +418,6 @@ export class GettingStartedPage extends
+ 
+ 	private hideExtension(extensionId: string) {
+ 		this.setHiddenCategories([...this.getHiddenCategories().add(extensionId)]);
+-		this.featuredExtensionsList?.rerender();
+ 		this.registerDispatchListeners();
+ 	}
+ 
+@@ -759,75 +724,230 @@ export class GettingStartedPage extends
+ 	}
+ 
+ 	private async buildCategoriesSlide() {
+-
+ 		this.categoriesSlideDisposables.clear();
+-		const showOnStartupCheckbox = new Toggle({
+-			icon: Codicon.check,
+-			actionClassName: 'getting-started-checkbox',
+-			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
+-			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+-			...defaultToggleStyles
+-		});
+-		showOnStartupCheckbox.domNode.id = 'showOnStartup';
+-		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
+-		const onShowOnStartupChanged = () => {
+-			if (showOnStartupCheckbox.checked) {
+-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
+-				this.configurationService.updateValue(configurationKey, 'welcomePage');
+-			} else {
+-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
+-				this.configurationService.updateValue(configurationKey, 'none');
+-			}
+-		};
+-		this.categoriesSlideDisposables.add(showOnStartupCheckbox);
+-		this.categoriesSlideDisposables.add(showOnStartupCheckbox.onChange(() => {
+-			onShowOnStartupChanged();
+-		}));
+-		this.categoriesSlideDisposables.add(addDisposableListener(showOnStartupLabel, 'click', () => {
+-			showOnStartupCheckbox.checked = !showOnStartupCheckbox.checked;
+-			onShowOnStartupChanged();
+-		}));
+ 
+ 		const header = $('.header', {},
+-			$('h1.product-name.caption', {}, this.productService.nameLong),
+-			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
++			$('h1.product-name.caption', {}, "GIGO DevSpace"),
++			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Learn By Creating"))
++		);
++
++		let nextStepsGigo: HTMLElement = $('.header', {});
++		nextStepsGigo = $('.codeTeacherPlugCategory', {},
++			$('h2', {
++				style: 'margin-bottom: 12px',
++			}, 'Need Some Help'),
++			$('button', {
++				style: [
++					'padding: 10px 16px	',
++					'border-radius: 4px',
++					'background: linear-gradient(94.04deg, #29C18C 0%, #3D8EF7 101.2%)',
++					'color: white',
++					'overflow: hidden',
++					'margin-right: 14px',
++				].join(';'),
++				onclick: () => this.commandService.executeCommand("codeTeacher.startChat")
++			},
++				$('h3', {
++					style: [
++						'margin: 0px 0px 6px',
++						'font-weight: 500',
++					].join(';'),
++				}, 'Use Code Teacher as a personal tutor!'),
++				$('p', {
++					style: [
++						'margin: 0',
++						'font-size: 13px',
++						'color: #dcdee2',
++					].join(';'),
++				}, 'Code Teacher is a Magic system built to provide personalized help for every developer. Code Teacher can help you with errors, explain concepts, and help you on your journey to becoming a better developer.'),
++				$('p', {
++					style: [
++						'margin: 0',
++						'margin-top: 8px',
++						'font-size: 13px',
++						'display: flex',
++						'align-items: center',
++					].join(';'),
++				}, 'Get started ', $('span', {
++					class: ThemeIcon.asClassName(Codicon.arrowRight),
++					style: [
++						'color: white',
++						'margin-left: 8px',
++					].join(';'),
++				})),
++				$('img', {
++					src: './_static/src/browser/media/code-teacher.png',
++					style: [
++						'margin-bottom: -65px',
++						'max-height: 300px',
++						'width: 100%',
++						'border-radius: 4px',
++						'object-fit: cover',
++						'object-position: top',
++						'margin-top: 10px',
++					].join(';'),
++				}),
++			),
++		);
++
++		let introToGigo: HTMLElement = $('.header', {});
++		introToGigo = $('.gigoIntroCategory', {},
++			$('h2', {
++				style: 'margin-bottom: 12px',
++			}, 'Let\'s Get Started'),
++			$('div', {},
++				$('p', {
++					style: [
++						'font-size: 18px',
++						'line-height: 1.3',
++						'margin-top: 0'
++					].join(';')
++				}, 'This is your DevSpace, it is a virtual environment in the cloud! You can use your DevSpace to complete interactive coding tutorials and work on Challenges. Let\'s learn about some of the tools in your DevSpace!'),
++				$('p', {
++					style: [
++						'font-size: 18px',
++						'line-height: 1.3',
++						'margin-top: 5px'
++					].join(';')
++				}, 'Use the activity bar on the left to navigate between different parts of your DevSpace. Click on any item below to explore more.'),
++				$('ul', {
++					style: [
++						'margin-top: 5px',
++					].join(';')
++				},
++					$('li', {},
++						$('p', {
++							style: [
++								'font-size: 14px',
++							].join(';')
++						}, 'Browse and manage your files and folders within your DevSpace.'),
++						$('button', {
++							style: [
++								'border-radius: 4px'
++							].join(';'),
++							onclick: () => this.commandService.executeCommand("workbench.view.explorer")
++						},
++							$('img', {
++								src: './_static/src/browser/media/vscode-icon-file-explorer.png',
++								style: 'height: 32px; width: 32px; vertical-align: middle; margin-right: 8px; border-radius: 4px;'
++							}),
++							$('span', {}, 'File Explorer'),
++						),
++					),
++					$('li', {},
++						$('p', {
++							style: [
++								'font-size: 14px',
++							].join(';')
++						}, 'Quickly find files, folders, and other items within your DevSpace.'),
++						$('button', {
++							style: [
++								'border-radius: 4px'
++							].join(';'),
++							onclick: () => this.commandService.executeCommand("workbench.action.findInFiles")
++						},
++							$('img', {
++								src: './_static/src/browser/media/vscode-icon-search.png',
++								style: 'height: 32px; width: 32px; vertical-align: middle; margin-right: 8px; border-radius: 4px;'
++							}),
++							$('span', {}, 'Search'),
++						),
++					),
++					$('li', {},
++						$('p', {
++							style: [
++								'font-size: 14px',
++							].join(';')
++						}, 'Open the GIGO tutorial for your project. All Interactive Challenges should have a tutorial but only some other Challenegs do.'),
++						$('button', {
++							style: [
++								'border-radius: 4px'
++							].join(';'),
++							onclick: () => this.commandService.executeCommand("gigo.tutorialView.focus")
++						},
++							$('img', {
++								src: './_static/src/browser/media/vscode-icon-tutorial.png',
++								style: 'height: 32px; width: 32px; vertical-align: middle; margin-right: 8px; border-radius: 4px;'
++							}),
++							$('span', {}, 'Challenge Tutorial'),
++						),
++					),
++					$('li', {},
++						$('p', {
++							style: [
++								'font-size: 14px',
++							].join(';')
++						}, 'Use the AFK feature to preserve your DevSpace for up to 1 hour of inactivity.'),
++						$('button', {
++							style: [
++								'border-radius: 4px'
++							].join(';'),
++							onclick: () => this.commandService.executeCommand("gigo.afkView.focus")
++						},
++							$('img', {
++								src: './_static/src/browser/media/vscode-icon-afk.png',
++								style: 'height: 32px; width: 32px; vertical-align: middle; margin-right: 8px; border-radius: 4px;'
++							}),
++							$('span', {}, 'AFK'),
++						),
++					),
++					$('li', {},
++						$('p', {
++							style: [
++								'font-size: 14px',
++							].join(';')
++						}, 'View your current streak status and your week\'s review.'),
++						$('button', {
++							style: [
++								'border-radius: 4px'
++							].join(';'),
++							onclick: () => this.commandService.executeCommand("gigo.streakView.focus")
++						},
++							$('img', {
++								src: './_static/src/browser/media/vscode-icon-streak.png',
++								style: 'height: 32px; width: 32px; vertical-align: middle; margin-right: 8px; border-radius: 4px;'
++							}),
++							$('span', {}, 'Streak'),
++						),
++					),
++					$('li', {},
++						$('p', {
++							style: [
++								'font-size: 14px',
++							].join(';')
++						}, 'Need some help? Code Teacher is your personal Magic tutor!'),
++						$('button', {
++							style: [
++								'border-radius: 4px'
++							].join(';'),
++							onclick: () => this.commandService.executeCommand("codeTeacher.startChat")
++						},
++							$('img', {
++								src: './_static/src/browser/media/vscode-icon-code-teacher.png',
++								style: 'height: 32px; width: 32px; vertical-align: middle; margin-right: 8px; border-radius: 4px;'
++							}),
++							$('span', {}, 'Code Teacher'),
++						),
++					),
++				)
++			)
  		);
  
-+		let gettingStartedCoder: HTMLElement = $('.header', {});
-+		if (this.contextService.contextMatchesRules(IsEnabledCoderGettingStarted)) {
-+			gettingStartedCoder = $('.gettingStartedCategory', {},
-+				$('h2', {
-+					style: 'margin-bottom: 12px',
-+				}, 'Next Up'),
-+				$('a', {
-+					href: 'https://cdr.co/code-server-to-coder',
-+					target: '_blank',
-+				},
-+					$('button', {
-+						style: [
-+							'padding: 10px 16px	',
-+							'border-radius: 4px',
-+							'background: linear-gradient(94.04deg, #7934DA 0%, #4D52E0 101.2%)',
-+							'color: white',
-+							'overflow: hidden',
-+							'margin-right: 14px',
-+						].join(';'),
-+					},
-+					$('h3', {
-+						style: [
-+							'margin: 0px 0px 6px',
-+							'font-weight: 500',
-+						].join(';'),
-+					}, 'Deploy code-server for your team'),
-+					$('p', {
-+						style: [
-+							'margin: 0',
-+							'font-size: 13px',
-+							'color: #dcdee2',
-+						].join(';'),
-+					}, 'Provision software development environments on your infrastructure with Coder.'),
-+					$('p', {
-+						style: [
-+							'margin-top: 8px',
-+							'font-size: 13px',
-+							'color: #dcdee2',
-+						].join(';'),
-+					}, 'Coder is a self-service portal which provisions via Terraform—Linux, macOS, Windows, x86, ARM, and, of course, Kubernetes based infrastructure.'),
-+					$('p', {
-+						style: [
-+							'margin: 0',
-+							'margin-top: 8px',
-+							'font-size: 13px',
-+							'display: flex',
-+							'align-items: center',
-+						].join(';'),
-+					}, 'Get started ', $('span', {
-+						class: ThemeIcon.asClassName(Codicon.arrowRight),
-+						style: [
-+							'color: white',
-+							'margin-left: 8px',
-+						].join(';'),
-+					})),
-+					$('img', {
-+						src: './_static/src/browser/media/templates.png',
-+						style: [
-+							'margin-bottom: -65px',
-+						].join(';'),
-+					}),
-+					),
-+				),
-+			);
-+		}
-+
  		const leftColumn = $('.categories-column.categories-column-left', {},);
  		const rightColumn = $('.categories-column.categories-column-right', {},);
  
-@@ -842,6 +908,9 @@ export class GettingStartedPage extends
- 				recentList.setLimit(5);
- 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+ 		const startList = this.buildStartList();
+-		const recentList = this.buildRecentlyOpenedList();
+-		const featuredExtensionList = this.buildFeaturedExtensionsList();
+ 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
+ 
+-		const footer = $('.footer', {},
+-			$('p.showOnStartup', {},
+-				showOnStartupCheckbox.domNode,
+-				showOnStartupLabel,
+-			));
++		const footer = $('.footer', {});
+ 
+ 		const layoutLists = () => {
+ 			if (gettingStartedList.itemCount) {
+ 				this.container.classList.remove('noWalkthroughs');
+-				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
++				reset(rightColumn, gettingStartedList.getDomElement());
  			}
-+			if (this.contextService.contextMatchesRules(IsEnabledCoderGettingStarted)) {
-+				prepend(rightColumn, gettingStartedCoder)
-+			}
+ 			else {
+ 				this.container.classList.add('noWalkthroughs');
+-				reset(rightColumn, featuredExtensionList.getDomElement());
+-			}
+-			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+-			layoutRecentList();
+-		};
+-
+-		const layoutFeaturedExtension = () => {
+-			if (featuredExtensionList.itemCount) {
+-				this.container.classList.remove('noExtensions');
+-				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
+-			}
+-			else {
+-				this.container.classList.add('noExtensions');
+-				reset(rightColumn, gettingStartedList.getDomElement());
+ 			}
+ 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
+ 			layoutRecentList();
+@@ -835,17 +955,12 @@ export class GettingStartedPage extends
+ 
+ 		const layoutRecentList = () => {
+ 			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noExtensions')) {
+-				recentList.setLimit(10);
+ 				reset(leftColumn, startList.getDomElement());
+-				reset(rightColumn, recentList.getDomElement());
+-			} else {
+-				recentList.setLimit(5);
+-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+ 			}
++			prepend(leftColumn, introToGigo)
++			prepend(rightColumn, nextStepsGigo)
  		};
  
- 		featuredExtensionList.onDidChange(layoutFeaturedExtension);
+-		featuredExtensionList.onDidChange(layoutFeaturedExtension);
+-		layoutFeaturedExtension();
+ 		gettingStartedList.onDidChange(layoutLists);
+ 		layoutLists();
+ 
+@@ -895,87 +1010,6 @@ export class GettingStartedPage extends
+ 		this.setSlide('categories');
+ 	}
+ 
+-	private buildRecentlyOpenedList(): GettingStartedIndexList<RecentEntry> {
+-		const renderRecent = (recent: RecentEntry) => {
+-			let fullPath: string;
+-			let windowOpenable: IWindowOpenable;
+-			if (isRecentFolder(recent)) {
+-				windowOpenable = { folderUri: recent.folderUri };
+-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
+-			} else {
+-				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
+-				windowOpenable = { workspaceUri: recent.workspace.configPath };
+-			}
+-
+-			const { name, parentPath } = splitRecentLabel(fullPath);
+-
+-			const li = $('li');
+-			const link = $('button.button-link');
+-
+-			link.innerText = name;
+-			link.title = fullPath;
+-			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
+-			link.addEventListener('click', e => {
+-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
+-				this.hostService.openWindow([windowOpenable], {
+-					forceNewWindow: e.ctrlKey || e.metaKey,
+-					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+-				});
+-				e.preventDefault();
+-				e.stopPropagation();
+-			});
+-			li.appendChild(link);
+-
+-			const span = $('span');
+-			span.classList.add('path');
+-			span.classList.add('detail');
+-			span.innerText = parentPath;
+-			span.title = fullPath;
+-			li.appendChild(span);
+-
+-			return li;
+-		};
+-
+-		if (this.recentlyOpenedList) { this.recentlyOpenedList.dispose(); }
+-
+-		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
+-			{
+-				title: localize('recent', "Recent"),
+-				klass: 'recently-opened',
+-				limit: 5,
+-				empty: $('.empty-recent', {},
+-					localize('noRecents', "You have no recent folders,"),
+-					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
+-					localize('toStart', "to start.")),
+-
+-				more: $('.more', {},
+-					$('button.button-link',
+-						{
+-							'x-dispatch': 'showMoreRecents',
+-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
+-						}, localize('showAll', "More..."))),
+-				renderElement: renderRecent,
+-				contextService: this.contextService
+-			});
+-
+-		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
+-		this.recentlyOpened.then(({ workspaces }) => {
+-			// Filter out the current workspace
+-			const workspacesWithID = workspaces
+-				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
+-				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+-
+-			const updateEntries = () => {
+-				recentlyOpenedList.setEntries(workspacesWithID);
+-			};
+-
+-			updateEntries();
+-			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
+-		}).catch(onUnexpectedError);
+-
+-		return recentlyOpenedList;
+-	}
+-
+ 	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
+ 		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
+ 			$('li',
+@@ -1091,61 +1125,6 @@ export class GettingStartedPage extends
+ 		return gettingStartedList;
+ 	}
+ 
+-	private buildFeaturedExtensionsList(): GettingStartedIndexList<IFeaturedExtension> {
+-
+-		const renderFeaturedExtensions = (entry: IFeaturedExtension): HTMLElement => {
+-
+-			const descriptionContent = $('.featured-description-content', {},);
+-
+-			reset(descriptionContent, ...renderLabelWithIcons(entry.description));
+-
+-			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': entry.id });
+-			reset(titleContent, ...renderLabelWithIcons(entry.title));
+-
+-			return $('button.getting-started-category',
+-				{
+-					'x-dispatch': 'openExtensionPage:' + entry.id,
+-					'title': entry.description
+-				},
+-				$('.main-content', {},
+-					$('img.featured-icon.icon-widget', { src: entry.imagePath }),
+-					titleContent,
+-					$('a.codicon.codicon-close.hide-category-button', {
+-						'tabindex': 0,
+-						'x-dispatch': 'hideExtension:' + entry.id,
+-						'title': localize('close', "Hide"),
+-						'role': 'button',
+-						'aria-label': localize('closeAriaLabel', "Hide"),
+-					}),
+-				),
+-				descriptionContent);
+-		};
+-
+-		if (this.featuredExtensionsList) {
+-			this.featuredExtensionsList.dispose();
+-		}
+-
+-		const featuredExtensionsList = this.featuredExtensionsList = new GettingStartedIndexList(
+-			{
+-				title: this.featuredExtensionService.title,
+-				klass: 'featured-extensions',
+-				limit: 5,
+-				renderElement: renderFeaturedExtensions,
+-				rankElement: (extension) => { if (this.getHiddenCategories().has(extension.id)) { return null; } return 0; },
+-				contextService: this.contextService,
+-			});
+-
+-		this.featuredExtensions?.then(extensions => {
+-			featuredExtensionsList.setEntries(extensions);
+-		});
+-
+-		this.featuredExtensionsList?.onDidChange(() => {
+-			this.registerDispatchListeners();
+-		});
+-
+-		return featuredExtensionsList;
+-	}
+-
+ 	layout(size: Dimension) {
+ 		this.detailsScrollbar?.scanDomNode();
+ 
+@@ -1154,7 +1133,6 @@ export class GettingStartedPage extends
+ 
+ 		this.startList?.layout(size);
+ 		this.gettingStartedList?.layout(size);
+-		this.featuredExtensionsList?.layout(size);
+ 		this.recentlyOpenedList?.layout(size);
+ 
+ 		if (this.editorInput?.selectedStep && this.currentMediaType) {
 Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/media/gettingStarted.css
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/media/gettingStarted.css
@@ -131,114 +628,3 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  .monaco-workbench.hc-black .part.editor>.content .gettingStartedContainer .subtitle,
  .monaco-workbench.hc-light .part.editor>.content .gettingStartedContainer .subtitle {
  	font-weight: 200;
-Index: code-server/lib/vscode/src/vs/workbench/browser/web.api.ts
-===================================================================
---- code-server.orig/lib/vscode/src/vs/workbench/browser/web.api.ts
-+++ code-server/lib/vscode/src/vs/workbench/browser/web.api.ts
-@@ -286,6 +286,11 @@ export interface IWorkbenchConstructionO
- 	 */
- 	readonly isEnabledFileDownloads?: boolean
- 
-+	/**
-+	 * Whether to use Coder's custom Getting Started text.
-+	 */
-+	readonly isEnabledCoderGettingStarted?: boolean
-+
- 	//#endregion
- 
- 	//#region Profile options
-Index: code-server/lib/vscode/src/vs/workbench/services/environment/browser/environmentService.ts
-===================================================================
---- code-server.orig/lib/vscode/src/vs/workbench/services/environment/browser/environmentService.ts
-+++ code-server/lib/vscode/src/vs/workbench/services/environment/browser/environmentService.ts
-@@ -39,6 +39,11 @@ export interface IBrowserWorkbenchEnviro
- 	readonly isEnabledFileDownloads?: boolean;
- 
- 	/**
-+	 * Enable Coder's custom getting started text.
-+	 */
-+	readonly isEnabledCoderGettingStarted?: boolean;
-+
-+	/**
- 	 * Gets whether a resolver extension is expected for the environment.
- 	 */
- 	readonly expectsResolverExtension: boolean;
-@@ -123,6 +128,13 @@ export class BrowserWorkbenchEnvironment
- 		return this.options.isEnabledFileDownloads;
- 	}
- 
-+	get isEnabledCoderGettingStarted(): boolean {
-+		if (typeof this.options.isEnabledCoderGettingStarted === "undefined") {
-+			throw new Error('isEnabledCoderGettingStarted was not provided to the browser');
-+		}
-+		return this.options.isEnabledCoderGettingStarted;
-+	}
-+
- 	@memoize
- 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
- 
-Index: code-server/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
-===================================================================
---- code-server.orig/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
-+++ code-server/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
-@@ -18,6 +18,7 @@ export const serverOptions: OptionDescri
- 	'auth': { type: 'string' },
- 	'disable-file-downloads': { type: 'boolean' },
- 	'locale': { type: 'string' },
-+	'disable-getting-started-override': { type: 'boolean' },
- 
- 	/* ----- server setup ----- */
- 
-@@ -101,6 +102,7 @@ export interface ServerParsedArgs {
- 	'auth'?: string
- 	'disable-file-downloads'?: boolean;
- 	'locale'?: string
-+	'disable-getting-started-override'?: boolean,
- 
- 	/* ----- server setup ----- */
- 
-Index: code-server/lib/vscode/src/vs/server/node/webClientServer.ts
-===================================================================
---- code-server.orig/lib/vscode/src/vs/server/node/webClientServer.ts
-+++ code-server/lib/vscode/src/vs/server/node/webClientServer.ts
-@@ -335,6 +335,7 @@ export class WebClientServer {
- 			webviewEndpoint: vscodeBase + this._staticRoute + '/out/vs/workbench/contrib/webview/browser/pre',
- 			userDataPath: this._environmentService.userDataPath,
- 			isEnabledFileDownloads: !this._environmentService.args['disable-file-downloads'],
-+			isEnabledCoderGettingStarted: !this._environmentService.args['disable-getting-started-override'],
- 			_wrapWebWorkerExtHostInIframe,
- 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
- 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
-Index: code-server/lib/vscode/src/vs/workbench/browser/contextkeys.ts
-===================================================================
---- code-server.orig/lib/vscode/src/vs/workbench/browser/contextkeys.ts
-+++ code-server/lib/vscode/src/vs/workbench/browser/contextkeys.ts
-@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/ev
- import { Disposable } from 'vs/base/common/lifecycle';
- import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
- import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
--import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, IsEnabledFileDownloads, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, MaximizedEditorGroupContext, TitleBarVisibleContext, TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
-+import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, IsEnabledFileDownloads, IsEnabledCoderGettingStarted, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, MaximizedEditorGroupContext, TitleBarVisibleContext, TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
- import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
- import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow } from 'vs/base/browser/dom';
- import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-@@ -221,6 +221,7 @@ export class WorkbenchContextKeysHandler
- 
- 		// code-server
- 		IsEnabledFileDownloads.bindTo(this.contextKeyService).set(this.environmentService.isEnabledFileDownloads ?? true)
-+		IsEnabledCoderGettingStarted.bindTo(this.contextKeyService).set(this.environmentService.isEnabledCoderGettingStarted ?? true)
- 
- 		this.registerListeners();
- 	}
-Index: code-server/lib/vscode/src/vs/workbench/common/contextkeys.ts
-===================================================================
---- code-server.orig/lib/vscode/src/vs/workbench/common/contextkeys.ts
-+++ code-server/lib/vscode/src/vs/workbench/common/contextkeys.ts
-@@ -40,6 +40,7 @@ export const HasWebFileSystemAccess = ne
- export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
- 
- export const IsEnabledFileDownloads = new RawContextKey<boolean>('isEnabledFileDownloads', true, true);
-+export const IsEnabledCoderGettingStarted = new RawContextKey<boolean>('isEnabledCoderGettingStarted', true, true);
- 
- //#endregion
- 
