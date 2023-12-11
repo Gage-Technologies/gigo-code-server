@@ -10,7 +10,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts
 +++ code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts
-@@ -10,7 +10,7 @@ import { IInstantiationService } from 'v
+@@ -10,14 +10,14 @@ import { IInstantiationService } from 'v
  import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
  import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
  import { assertIsDefined } from 'vs/base/common/types';
@@ -19,6 +19,14 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  import { ICommandService } from 'vs/platform/commands/common/commands';
  import { IProductService } from 'vs/platform/product/common/productService';
  import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+ import { IThemeService } from 'vs/platform/theme/common/themeService';
+ import { ThemeIcon } from 'vs/base/common/themables';
+ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+-import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
++import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
+ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 @@ -27,11 +27,8 @@ import { IStorageService, StorageScope,
  import { CancellationToken } from 'vs/base/common/cancellation';
  import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -69,7 +77,11 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  
  	private currentWalkthrough: IResolvedWalkthrough | undefined;
  
-@@ -153,7 +141,6 @@ export class GettingStartedPage extends
+@@ -149,11 +137,9 @@ export class GettingStartedPage extends
+ 
+ 	private contextService: IContextKeyService;
+ 
+-	private hasScrolledToFirstCategory = false;
  	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
  	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
  	private gettingStartedList?: GettingStartedIndexList<IResolvedWalkthrough>;
@@ -77,7 +89,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  
  	private stepsSlide!: HTMLElement;
  	private categoriesSlide!: HTMLElement;
-@@ -172,7 +159,6 @@ export class GettingStartedPage extends
+@@ -172,7 +158,6 @@ export class GettingStartedPage extends
  		@IProductService private readonly productService: IProductService,
  		@IKeybindingService private readonly keybindingService: IKeybindingService,
  		@IWalkthroughsService private readonly gettingStartedService: IWalkthroughsService,
@@ -85,7 +97,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		@IConfigurationService private readonly configurationService: IConfigurationService,
  		@ITelemetryService telemetryService: ITelemetryService,
  		@ILanguageService private readonly languageService: ILanguageService,
-@@ -186,13 +172,10 @@ export class GettingStartedPage extends
+@@ -186,13 +171,10 @@ export class GettingStartedPage extends
  		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
  		@IContextKeyService contextService: IContextKeyService,
  		@IQuickInputService private quickInputService: IQuickInputService,
@@ -100,7 +112,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  
  		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
  
-@@ -213,14 +196,12 @@ export class GettingStartedPage extends
+@@ -213,14 +195,12 @@ export class GettingStartedPage extends
  		inWelcomeContext.bindTo(this.contextService).set(true);
  
  		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
@@ -115,7 +127,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  			if (this.currentWalkthrough) {
  				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
  				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
-@@ -235,24 +216,9 @@ export class GettingStartedPage extends
+@@ -235,24 +215,9 @@ export class GettingStartedPage extends
  			}
  		};
  
@@ -140,7 +152,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
  			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
  			if (!ourCategory) { return; }
-@@ -452,7 +418,6 @@ export class GettingStartedPage extends
+@@ -452,7 +417,6 @@ export class GettingStartedPage extends
  
  	private hideExtension(extensionId: string) {
  		this.setHiddenCategories([...this.getHiddenCategories().add(extensionId)]);
@@ -148,7 +160,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		this.registerDispatchListeners();
  	}
  
-@@ -759,75 +724,230 @@ export class GettingStartedPage extends
+@@ -759,75 +723,230 @@ export class GettingStartedPage extends
  	}
  
  	private async buildCategoriesSlide() {
@@ -430,7 +442,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  			}
  			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
  			layoutRecentList();
-@@ -835,17 +955,12 @@ export class GettingStartedPage extends
+@@ -835,17 +954,12 @@ export class GettingStartedPage extends
  
  		const layoutRecentList = () => {
  			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noExtensions')) {
@@ -450,7 +462,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		gettingStartedList.onDidChange(layoutLists);
  		layoutLists();
  
-@@ -869,113 +984,15 @@ export class GettingStartedPage extends
+@@ -869,113 +983,15 @@ export class GettingStartedPage extends
  			}
  		}
  
@@ -564,7 +576,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
  		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
  			$('li',
-@@ -1091,61 +1108,6 @@ export class GettingStartedPage extends
+@@ -1091,61 +1107,6 @@ export class GettingStartedPage extends
  		return gettingStartedList;
  	}
  
@@ -626,7 +638,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  	layout(size: Dimension) {
  		this.detailsScrollbar?.scanDomNode();
  
-@@ -1154,7 +1116,6 @@ export class GettingStartedPage extends
+@@ -1154,7 +1115,6 @@ export class GettingStartedPage extends
  
  		this.startList?.layout(size);
  		this.gettingStartedList?.layout(size);
