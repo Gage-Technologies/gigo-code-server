@@ -450,7 +450,33 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		gettingStartedList.onDidChange(layoutLists);
  		layoutLists();
  
-@@ -895,87 +1010,6 @@ export class GettingStartedPage extends
+@@ -869,113 +984,15 @@ export class GettingStartedPage extends
+ 			}
+ 		}
+ 
+-		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
+ 		if (this.editorInput.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
+ 			const telemetryNotice = $('p.telemetry-notice');
+ 			this.buildTelemetryFooter(telemetryNotice);
+ 			footer.appendChild(telemetryNotice);
+-		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
+-			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
+-			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
+-			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
+-
+-			if (fistContentBehaviour === 'openToFirstCategory') {
+-				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
+-				this.hasScrolledToFirstCategory = true;
+-				if (first) {
+-					this.currentWalkthrough = first;
+-					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
+-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+-					this.setSlide('details');
+-					return;
+-				}
+-			}
+ 		}
+ 
  		this.setSlide('categories');
  	}
  
@@ -538,7 +564,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
  		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
  			$('li',
-@@ -1091,61 +1125,6 @@ export class GettingStartedPage extends
+@@ -1091,61 +1108,6 @@ export class GettingStartedPage extends
  		return gettingStartedList;
  	}
  
@@ -600,7 +626,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  	layout(size: Dimension) {
  		this.detailsScrollbar?.scanDomNode();
  
-@@ -1154,7 +1133,6 @@ export class GettingStartedPage extends
+@@ -1154,7 +1116,6 @@ export class GettingStartedPage extends
  
  		this.startList?.layout(size);
  		this.gettingStartedList?.layout(size);
