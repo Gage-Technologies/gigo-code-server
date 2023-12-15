@@ -53,7 +53,7 @@ Index: code-server/lib/vscode/src/vs/base/common/platform.ts
  export const LANGUAGE_DEFAULT = 'en';
  
  let _isWindows = false;
-@@ -90,17 +88,21 @@ if (typeof navigator === 'object' && !is
+@@ -85,17 +83,21 @@ if (typeof navigator === 'object' && !is
  	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
  	_isWeb = true;
  
@@ -98,10 +98,10 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.html
  		<!-- Workbench Icon/Manifest/CSS -->
  		<link rel="icon" href="{{BASE}}/_static/src/browser/media/favicon-dark-support.svg" />
  		<link rel="alternate icon" href="{{BASE}}/_static/src/browser/media/favicon.ico" type="image/x-icon" />
-@@ -48,15 +51,26 @@
+@@ -48,14 +51,26 @@
  		// Normalize locale to lowercase because translationServiceUrl is case-sensitive.
  		// ref: https://github.com/microsoft/vscode/issues/187795
- 		const locale = window.localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase();
+ 		const locale = localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase();
 -		if (!locale.startsWith('en')) {
 -			nlsConfig['vs/nls'] = {
 -				availableLanguages: {
@@ -110,7 +110,6 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.html
 -				translationServiceUrl: '{{WORKBENCH_NLS_BASE_URL}}'
 -			};
 -		}
--
 +		try {
 +			nlsConfig['vs/nls'] = JSON.parse(document.getElementById("vscode-remote-nls-configuration").getAttribute("data-settings"))
 +			if (nlsConfig['vs/nls']._resolvedLanguagePackCoreLocation) {
@@ -131,9 +130,9 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.html
 +				}
 +			}
 +		} catch (error) { /* Probably fine. */ }
+ 
  		require.config({
  			baseUrl: `${baseUrl}/out`,
- 			recordStats: true,
 Index: code-server/lib/vscode/src/vs/platform/environment/common/environmentService.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/platform/environment/common/environmentService.ts
@@ -237,6 +236,15 @@ Index: code-server/lib/vscode/src/vs/server/node/webClientServer.ts
  		};
  
  		if (useTestResolver) {
+@@ -372,8 +376,6 @@ export class WebClientServer {
+ 			return void res.end('Not found');
+ 		}
+ 
+-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-75NYUUvf+5++1WbfCZOV3PSWxBhONpaxwx+mkOFRv/Y=';
+-
+ 		const cspDirectives = [
+ 			'default-src \'self\';',
+ 			'img-src \'self\' https: data: blob:;',
 Index: code-server/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
@@ -367,7 +375,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/extensions/browser/extens
  		}
  
  		// Prefers to run on UI
-@@ -1684,17 +1681,6 @@ export class SetLanguageAction extends E
+@@ -1751,17 +1748,6 @@ export class SetLanguageAction extends E
  	update(): void {
  		this.enabled = false;
  		this.class = SetLanguageAction.DisabledClass;
@@ -385,7 +393,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/extensions/browser/extens
  	}
  
  	override async run(): Promise<any> {
-@@ -1711,7 +1697,6 @@ export class ClearLanguageAction extends
+@@ -1778,7 +1764,6 @@ export class ClearLanguageAction extends
  	private static readonly DisabledClass = `${ClearLanguageAction.EnabledClass} disabled`;
  
  	constructor(
@@ -393,7 +401,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/extensions/browser/extens
  		@ILocaleService private readonly localeService: ILocaleService,
  	) {
  		super(ClearLanguageAction.ID, ClearLanguageAction.TITLE.value, ClearLanguageAction.DisabledClass, false);
-@@ -1721,17 +1706,6 @@ export class ClearLanguageAction extends
+@@ -1788,17 +1773,6 @@ export class ClearLanguageAction extends
  	update(): void {
  		this.enabled = false;
  		this.class = ClearLanguageAction.DisabledClass;
