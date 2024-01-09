@@ -57,7 +57,7 @@ Index: code-server/lib/vscode/src/vs/platform/remote/browser/remoteAuthorityReso
  		this._logService.info(`Resolved connection token (${authorityPrefix}) after ${sw.elapsed()} ms`);
 +		let options: ResolvedOptions | undefined;
 +		if (this.productService.proxyEndpointTemplate) {
-+			const proxyUrl = new URL(this.productService.proxyEndpointTemplate, window.location.href);
++			const proxyUrl = new URL(this.productService.proxyEndpointTemplate, mainWindow.location.href);
 +			options = { extensionHostEnv: { VSCODE_PROXY_URI: decodeURIComponent(proxyUrl.toString()) }}
 +		}
  		const defaultPort = (/^https:/.test(mainWindow.location.href) ? 443 : 80);

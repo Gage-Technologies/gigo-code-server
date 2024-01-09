@@ -103,7 +103,7 @@ Index: code-server/lib/vscode/src/vs/platform/remote/browser/browserSocketFactor
  	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
  		return new Promise<ISocket>((resolve, reject) => {
  			const webSocketSchema = (/^https:/.test(mainWindow.location.href) ? 'wss' : 'ws');
-+			path = (window.location.pathname + "/" + path).replace(/\/\/+/g, "/")
++			path = (mainWindow.location.pathname + "/" + path).replace(/\/\/+/g, "/")
  			const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
  			const errorListener = socket.onError(reject);
  			socket.onOpen(() => {
@@ -164,7 +164,7 @@ Index: code-server/lib/vscode/src/vs/server/node/webClientServer.ts
  			'img-src \'self\' https: data: blob:;',
  			'media-src \'self\';',
 -			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
-+			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' ${useTestResolver ? '' : ''};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
++			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' ${useTestResolver ? '' : ''};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
  			'child-src \'self\';',
  			`frame-src 'self' https://*.vscode-cdn.net data:;`,
  			'worker-src \'self\' data: blob:;',
@@ -259,11 +259,10 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.ts
  			this.pendingCallbacks.add(id);
  			this.startListening();
  		}
--
+ 
 -		return URI.parse(mainWindow.location.href).with({ path: this._callbackRoute, query: queryParams.join('&') });
-+		
-+		const path = (window.location.pathname + "/" + this._callbackRoute).replace(/\/\/+/g, "/");
-+		return URI.parse(window.location.href).with({ path: path, query: queryParams.join('&') });
++		const path = (mainWindow.location.pathname + "/" + this._callbackRoute).replace(/\/\/+/g, "/");
++		return URI.parse(mainWindow.location.href).with({ path: path, query: queryParams.join('&') });
  	}
  
  	private startListening(): void {
