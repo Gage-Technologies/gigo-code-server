@@ -10,7 +10,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts
 +++ code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.ts
-@@ -3,7 +3,7 @@
+@@ -3,20 +3,17 @@
   *  Licensed under the MIT License. See License.txt in the project root for license information.
   *--------------------------------------------------------------------------------------------*/
  
@@ -19,35 +19,60 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
  import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
  import { Button } from 'vs/base/browser/ui/button/button';
-@@ -58,7 +58,7 @@ import { IRecentFolder, IRecentWorkspace
+ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+ import { coalesce, equals, flatten } from 'vs/base/common/arrays';
+ import { Delayer, Throttler } from 'vs/base/common/async';
+ import { CancellationToken } from 'vs/base/common/cancellation';
+ import { Codicon } from 'vs/base/common/codicons';
+-import { onUnexpectedError } from 'vs/base/common/errors';
+ import { KeyCode } from 'vs/base/common/keyCodes';
+-import { splitRecentLabel } from 'vs/base/common/labels';
+ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+ import { ILink, LinkedText } from 'vs/base/common/linkedText';
+ import { parse } from 'vs/base/common/marshalling';
+@@ -41,20 +38,18 @@ import { ExtensionIdentifier } from 'vs/
+ import { IFileService } from 'vs/platform/files/common/files';
+ import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
+ import { INotificationService } from 'vs/platform/notification/common/notification';
+ import { Link } from 'vs/platform/opener/browser/link';
+ import { IOpenerService } from 'vs/platform/opener/common/opener';
+ import { IProductService } from 'vs/platform/product/common/productService';
+ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+-import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
++import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+-import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
++import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+ import { IThemeService } from 'vs/platform/theme/common/themeService';
+-import { IWindowOpenable } from 'vs/platform/window/common/window';
+ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+-import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
++import { IRecentFolder, IRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
  import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
  import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
  import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
--import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-+import { IsEnabledCoderGettingStarted, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
- import { IEditorOpenContext, IEditorSerializer } from 'vs/workbench/common/editor';
- import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
- import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/featuredExtensionService';
-@@ -793,6 +793,72 @@ export class GettingStartedPage extends
- 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
- 		);
+@@ -76,7 +71,6 @@ import { ThemeSettings } from 'vs/workbe
+ import { GettingStartedIndexList } from './gettingStartedList';
  
  const SLIDE_TRANSITION_TIME_MS = 250;
 -const configurationKey = 'workbench.startupEditor';
  
  export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
  export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
-@@ -132,9 +122,7 @@ export class GettingStartedPage extends
+@@ -132,7 +126,6 @@ export class GettingStartedPage extends
  
  	// Ensure that the these are initialized before use.
  	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
 -	private recentlyOpened!: Promise<IRecentlyOpened>;
  	private gettingStartedCategories!: IResolvedWalkthrough[];
--	private featuredExtensions!: Promise<IFeaturedExtension[]>;
+ 	private featuredExtensions!: Promise<IFeaturedExtension[]>;
  
- 	private currentWalkthrough: IResolvedWalkthrough | undefined;
- 
-@@ -149,11 +137,9 @@ export class GettingStartedPage extends
+@@ -149,11 +142,9 @@ export class GettingStartedPage extends
  
  	private contextService: IContextKeyService;
  
@@ -59,15 +84,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  
  	private stepsSlide!: HTMLElement;
  	private categoriesSlide!: HTMLElement;
-@@ -172,7 +158,6 @@ export class GettingStartedPage extends
- 		@IProductService private readonly productService: IProductService,
- 		@IKeybindingService private readonly keybindingService: IKeybindingService,
- 		@IWalkthroughsService private readonly gettingStartedService: IWalkthroughsService,
--		@IFeaturedExtensionsService private readonly featuredExtensionService: IFeaturedExtensionsService,
- 		@IConfigurationService private readonly configurationService: IConfigurationService,
- 		@ITelemetryService telemetryService: ITelemetryService,
- 		@ILanguageService private readonly languageService: ILanguageService,
-@@ -186,13 +171,10 @@ export class GettingStartedPage extends
+@@ -186,8 +177,6 @@ export class GettingStartedPage extends
  		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
  		@IContextKeyService contextService: IContextKeyService,
  		@IQuickInputService private quickInputService: IQuickInputService,
@@ -76,40 +93,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		@IHostService private readonly hostService: IHostService,
  		@IWebviewService private readonly webviewService: IWebviewService,
  		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
--		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
--		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService) {
-+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService) {
- 
- 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
- 
-@@ -213,14 +195,12 @@ export class GettingStartedPage extends
- 		inWelcomeContext.bindTo(this.contextService).set(true);
- 
- 		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
--		this.featuredExtensions = this.featuredExtensionService.getExtensions();
- 
- 		this._register(this.dispatchListeners);
- 		this.buildSlideThrottle = new Throttler();
- 
- 		const rerender = () => {
- 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
--			this.featuredExtensions = this.featuredExtensionService.getExtensions();
- 			if (this.currentWalkthrough) {
- 				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
- 				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
-@@ -235,24 +215,9 @@ export class GettingStartedPage extends
- 			}
- 		};
- 
--		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
--			for (const e of result) {
--				const installedFeaturedExtension = (await this.featuredExtensions)?.find(ext => ExtensionIdentifier.equals(ext.id, e.identifier.id));
--				if (installedFeaturedExtension) {
--					this.hideExtension(e.identifier.id);
--				}
--			}
--		}));
--
+@@ -247,12 +236,6 @@ export class GettingStartedPage extends
  		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
  		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
  
@@ -122,7 +106,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
  			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
  			if (!ourCategory) { return; }
-@@ -452,7 +417,6 @@ export class GettingStartedPage extends
+@@ -452,7 +435,6 @@ export class GettingStartedPage extends
  
  	private hideExtension(extensionId: string) {
  		this.setHiddenCategories([...this.getHiddenCategories().add(extensionId)]);
@@ -130,7 +114,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		this.registerDispatchListeners();
  	}
  
-@@ -759,75 +723,230 @@ export class GettingStartedPage extends
+@@ -759,75 +741,230 @@ export class GettingStartedPage extends
  	}
  
  	private async buildCategoriesSlide() {
@@ -412,7 +396,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  			}
  			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
  			layoutRecentList();
-@@ -835,17 +954,12 @@ export class GettingStartedPage extends
+@@ -835,17 +972,12 @@ export class GettingStartedPage extends
  
  		const layoutRecentList = () => {
  			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noExtensions')) {
@@ -432,7 +416,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		gettingStartedList.onDidChange(layoutLists);
  		layoutLists();
  
-@@ -869,113 +983,15 @@ export class GettingStartedPage extends
+@@ -869,113 +1001,15 @@ export class GettingStartedPage extends
  			}
  		}
  
@@ -546,7 +530,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
  		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
  			$('li',
-@@ -1091,61 +1107,6 @@ export class GettingStartedPage extends
+@@ -1091,61 +1125,6 @@ export class GettingStartedPage extends
  		return gettingStartedList;
  	}
  
@@ -608,7 +592,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  	layout(size: Dimension) {
  		this.detailsScrollbar?.scanDomNode();
  
-@@ -1154,7 +1115,6 @@ export class GettingStartedPage extends
+@@ -1154,7 +1133,6 @@ export class GettingStartedPage extends
  
  		this.startList?.layout(size);
  		this.gettingStartedList?.layout(size);

@@ -104,15 +104,6 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.ts
  import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
  import { create } from 'vs/workbench/workbench.web.main';
  
-@@ -303,7 +304,7 @@ class LocalStorageURLCallbackProvider ex
- 			this.pendingCallbacks.add(id);
- 			this.startListening();
- 		}
--		
-+
- 		const path = (window.location.pathname + "/" + this._callbackRoute).replace(/\/\/+/g, "/");
- 		return URI.parse(window.location.href).with({ path: path, query: queryParams.join('&') });
- 	}
 @@ -571,6 +572,39 @@ class WorkspaceProvider implements IWork
  		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,
  		workspaceProvider: WorkspaceProvider.create(config),

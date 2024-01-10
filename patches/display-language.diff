@@ -131,9 +131,9 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.html
 +				}
 +			}
 +		} catch (error) { /* Probably fine. */ }
- 
  		require.config({
  			baseUrl: `${baseUrl}/out`,
+ 			recordStats: true,
 Index: code-server/lib/vscode/src/vs/platform/environment/common/environmentService.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/platform/environment/common/environmentService.ts
@@ -237,15 +237,6 @@ Index: code-server/lib/vscode/src/vs/server/node/webClientServer.ts
  		};
  
  		if (useTestResolver) {
-@@ -372,8 +376,6 @@ export class WebClientServer {
- 			return void res.end('Not found');
- 		}
- 
--		const webWorkerExtensionHostIframeScriptSHA = 'sha256-75NYUUvf+5++1WbfCZOV3PSWxBhONpaxwx+mkOFRv/Y=';
--
- 		const cspDirectives = [
- 			'default-src \'self\';',
- 			'img-src \'self\' https: data: blob:;',
 Index: code-server/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/server/node/serverEnvironmentService.ts

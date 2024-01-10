@@ -32,15 +32,6 @@ Index: code-server/lib/vscode/src/vs/workbench/browser/client.ts
  	}
  
  	private checkUpdates(updateEndpoint: string) {
-@@ -123,7 +127,7 @@ export class CodeServerClient extends Di
- 
- 			this.notificationService.notify({
- 				severity: Severity.Info,
--				message: `[code-server v${json.latest}](https://github.com/cdr/code-server/releases/tag/v${json.latest}) has been released!`,
-+				message: `[gigo-code-server v${json.latest}](https://github.com/gage-technologies/gigo-code-server/releases/tag/v${json.latest}) has been released!`,
- 			});
- 		};
- 
 @@ -161,4 +165,17 @@ export class CodeServerClient extends Di
  			});
  		}

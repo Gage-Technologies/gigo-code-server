@@ -255,8 +255,7 @@ Index: code-server/lib/vscode/src/vs/code/browser/workbench/workbench.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/code/browser/workbench/workbench.ts
 +++ code-server/lib/vscode/src/vs/code/browser/workbench/workbench.ts
-@@ -303,8 +303,9 @@ class LocalStorageURLCallbackProvider ex
- 			this.pendingCallbacks.add(id);
+@@ -304,7 +304,8 @@ class LocalStorageURLCallbackProvider ex
  			this.startListening();
  		}
  
