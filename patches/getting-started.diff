@@ -14,50 +14,23 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
   *  Licensed under the MIT License. See License.txt in the project root for license information.
   *--------------------------------------------------------------------------------------------*/
  
--import { $, Dimension, addDisposableListener, append, clearNode, getWindow, reset } from 'vs/base/browser/dom';
-+import { $, Dimension, addDisposableListener, append, clearNode, getWindow, reset, prepend } from 'vs/base/browser/dom';
+-import { $, Dimension, addDisposableListener, append, clearNode, reset } from 'vs/base/browser/dom';
++import { $, Dimension, addDisposableListener, append, clearNode, reset, prepend } from 'vs/base/browser/dom';
  import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
  import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
  import { Button } from 'vs/base/browser/ui/button/button';
- import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
- import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
--import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
- import { coalesce, equals, flatten } from 'vs/base/common/arrays';
- import { Delayer, Throttler } from 'vs/base/common/async';
- import { CancellationToken } from 'vs/base/common/cancellation';
- import { Codicon } from 'vs/base/common/codicons';
--import { onUnexpectedError } from 'vs/base/common/errors';
- import { KeyCode } from 'vs/base/common/keyCodes';
--import { splitRecentLabel } from 'vs/base/common/labels';
- import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
- import { ILink, LinkedText } from 'vs/base/common/linkedText';
- import { parse } from 'vs/base/common/marshalling';
-@@ -41,20 +38,18 @@ import { ExtensionIdentifier } from 'vs/
- import { IFileService } from 'vs/platform/files/common/files';
- import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
- import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
--import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
- import { INotificationService } from 'vs/platform/notification/common/notification';
- import { Link } from 'vs/platform/opener/browser/link';
- import { IOpenerService } from 'vs/platform/opener/common/opener';
- import { IProductService } from 'vs/platform/product/common/productService';
- import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
- import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
--import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
- import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
--import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
- import { IThemeService } from 'vs/platform/theme/common/themeService';
--import { IWindowOpenable } from 'vs/platform/window/common/window';
- import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
--import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
-+import { IRecentFolder, IRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
+@@ -55,7 +55,7 @@ import { IRecentFolder, IRecentWorkspace
  import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
  import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
  import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-@@ -76,7 +71,6 @@ import { ThemeSettings } from 'vs/workbe
- import { GettingStartedIndexList } from './gettingStartedList';
+-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
++import { IsEnabledCoderGettingStarted, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+ import { IEditorOpenContext, IEditorSerializer } from 'vs/workbench/common/editor';
+ import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+ import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
+@@ -813,6 +813,72 @@ export class GettingStartedPage extends
+ 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
+ 		);
  
  const SLIDE_TRANSITION_TIME_MS = 250;
 -const configurationKey = 'workbench.startupEditor';
@@ -362,23 +335,9 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		const leftColumn = $('.categories-column.categories-column-left', {},);
  		const rightColumn = $('.categories-column.categories-column-right', {},);
  
- 		const startList = this.buildStartList();
--		const recentList = this.buildRecentlyOpenedList();
--		const featuredExtensionList = this.buildFeaturedExtensionsList();
- 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
- 
--		const footer = $('.footer', {},
--			$('p.showOnStartup', {},
--				showOnStartupCheckbox.domNode,
--				showOnStartupLabel,
--			));
-+		const footer = $('.footer', {});
- 
- 		const layoutLists = () => {
- 			if (gettingStartedList.itemCount) {
- 				this.container.classList.remove('noWalkthroughs');
--				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
-+				reset(rightColumn, gettingStartedList.getDomElement());
+@@ -884,6 +950,9 @@ export class GettingStartedPage extends
+ 				recentList.setLimit(5);
+ 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
  			}
  			else {
  				this.container.classList.add('noWalkthroughs');
@@ -414,195 +373,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
 +			prepend(rightColumn, nextStepsGigo)
  		};
  
--		featuredExtensionList.onDidChange(layoutFeaturedExtension);
--		layoutFeaturedExtension();
  		gettingStartedList.onDidChange(layoutLists);
- 		layoutLists();
- 
-@@ -869,113 +1001,15 @@ export class GettingStartedPage extends
- 			}
- 		}
- 
--		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
- 		if (this.editorInput.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
- 			const telemetryNotice = $('p.telemetry-notice');
- 			this.buildTelemetryFooter(telemetryNotice);
- 			footer.appendChild(telemetryNotice);
--		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
--			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
--			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
--			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
--
--			if (fistContentBehaviour === 'openToFirstCategory') {
--				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
--				this.hasScrolledToFirstCategory = true;
--				if (first) {
--					this.currentWalkthrough = first;
--					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
--					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
--					this.setSlide('details');
--					return;
--				}
--			}
- 		}
- 
- 		this.setSlide('categories');
- 	}
- 
--	private buildRecentlyOpenedList(): GettingStartedIndexList<RecentEntry> {
--		const renderRecent = (recent: RecentEntry) => {
--			let fullPath: string;
--			let windowOpenable: IWindowOpenable;
--			if (isRecentFolder(recent)) {
--				windowOpenable = { folderUri: recent.folderUri };
--				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
--			} else {
--				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
--				windowOpenable = { workspaceUri: recent.workspace.configPath };
--			}
--
--			const { name, parentPath } = splitRecentLabel(fullPath);
--
--			const li = $('li');
--			const link = $('button.button-link');
--
--			link.innerText = name;
--			link.title = fullPath;
--			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
--			link.addEventListener('click', e => {
--				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
--				this.hostService.openWindow([windowOpenable], {
--					forceNewWindow: e.ctrlKey || e.metaKey,
--					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
--				});
--				e.preventDefault();
--				e.stopPropagation();
--			});
--			li.appendChild(link);
--
--			const span = $('span');
--			span.classList.add('path');
--			span.classList.add('detail');
--			span.innerText = parentPath;
--			span.title = fullPath;
--			li.appendChild(span);
--
--			return li;
--		};
--
--		if (this.recentlyOpenedList) { this.recentlyOpenedList.dispose(); }
--
--		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
--			{
--				title: localize('recent', "Recent"),
--				klass: 'recently-opened',
--				limit: 5,
--				empty: $('.empty-recent', {},
--					localize('noRecents', "You have no recent folders,"),
--					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
--					localize('toStart', "to start.")),
--
--				more: $('.more', {},
--					$('button.button-link',
--						{
--							'x-dispatch': 'showMoreRecents',
--							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
--						}, localize('showAll', "More..."))),
--				renderElement: renderRecent,
--				contextService: this.contextService
--			});
--
--		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
--		this.recentlyOpened.then(({ workspaces }) => {
--			// Filter out the current workspace
--			const workspacesWithID = workspaces
--				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
--				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
--
--			const updateEntries = () => {
--				recentlyOpenedList.setEntries(workspacesWithID);
--			};
--
--			updateEntries();
--			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
--		}).catch(onUnexpectedError);
--
--		return recentlyOpenedList;
--	}
--
- 	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
- 		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
- 			$('li',
-@@ -1091,61 +1125,6 @@ export class GettingStartedPage extends
- 		return gettingStartedList;
- 	}
- 
--	private buildFeaturedExtensionsList(): GettingStartedIndexList<IFeaturedExtension> {
--
--		const renderFeaturedExtensions = (entry: IFeaturedExtension): HTMLElement => {
--
--			const descriptionContent = $('.featured-description-content', {},);
--
--			reset(descriptionContent, ...renderLabelWithIcons(entry.description));
--
--			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': entry.id });
--			reset(titleContent, ...renderLabelWithIcons(entry.title));
--
--			return $('button.getting-started-category',
--				{
--					'x-dispatch': 'openExtensionPage:' + entry.id,
--					'title': entry.description
--				},
--				$('.main-content', {},
--					$('img.featured-icon.icon-widget', { src: entry.imagePath }),
--					titleContent,
--					$('a.codicon.codicon-close.hide-category-button', {
--						'tabindex': 0,
--						'x-dispatch': 'hideExtension:' + entry.id,
--						'title': localize('close', "Hide"),
--						'role': 'button',
--						'aria-label': localize('closeAriaLabel', "Hide"),
--					}),
--				),
--				descriptionContent);
--		};
--
--		if (this.featuredExtensionsList) {
--			this.featuredExtensionsList.dispose();
--		}
--
--		const featuredExtensionsList = this.featuredExtensionsList = new GettingStartedIndexList(
--			{
--				title: this.featuredExtensionService.title,
--				klass: 'featured-extensions',
--				limit: 5,
--				renderElement: renderFeaturedExtensions,
--				rankElement: (extension) => { if (this.getHiddenCategories().has(extension.id)) { return null; } return 0; },
--				contextService: this.contextService,
--			});
--
--		this.featuredExtensions?.then(extensions => {
--			featuredExtensionsList.setEntries(extensions);
--		});
--
--		this.featuredExtensionsList?.onDidChange(() => {
--			this.registerDispatchListeners();
--		});
--
--		return featuredExtensionsList;
--	}
--
- 	layout(size: Dimension) {
- 		this.detailsScrollbar?.scanDomNode();
- 
-@@ -1154,7 +1133,6 @@ export class GettingStartedPage extends
- 
- 		this.startList?.layout(size);
- 		this.gettingStartedList?.layout(size);
--		this.featuredExtensionsList?.layout(size);
- 		this.recentlyOpenedList?.layout(size);
- 
- 		if (this.editorInput?.selectedStep && this.currentMediaType) {
 Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/media/gettingStarted.css
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/browser/media/gettingStarted.css
@@ -627,7 +398,7 @@ Index: code-server/lib/vscode/src/vs/workbench/browser/web.api.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/workbench/browser/web.api.ts
 +++ code-server/lib/vscode/src/vs/workbench/browser/web.api.ts
-@@ -292,6 +292,11 @@ export interface IWorkbenchConstructionO
+@@ -299,6 +299,11 @@ export interface IWorkbenchConstructionO
  	 */
  	readonly isEnabledFileUploads?: boolean
  
@@ -681,7 +452,7 @@ Index: code-server/lib/vscode/src/vs/server/node/serverEnvironmentService.ts
  
  	/* ----- server setup ----- */
  
-@@ -104,6 +105,7 @@ export interface ServerParsedArgs {
+@@ -105,6 +106,7 @@ export interface ServerParsedArgs {
  	'disable-file-downloads'?: boolean;
  	'disable-file-uploads'?: boolean;
  	'locale'?: string
@@ -693,7 +464,7 @@ Index: code-server/lib/vscode/src/vs/server/node/webClientServer.ts
 ===================================================================
 --- code-server.orig/lib/vscode/src/vs/server/node/webClientServer.ts
 +++ code-server/lib/vscode/src/vs/server/node/webClientServer.ts
-@@ -336,6 +336,7 @@ export class WebClientServer {
+@@ -338,6 +338,7 @@ export class WebClientServer {
  			userDataPath: this._environmentService.userDataPath,
  			isEnabledFileDownloads: !this._environmentService.args['disable-file-downloads'],
  			isEnabledFileUploads: !this._environmentService.args['disable-file-uploads'],
@@ -709,12 +480,12 @@ Index: code-server/lib/vscode/src/vs/workbench/browser/contextkeys.ts
  import { Disposable } from 'vs/base/common/lifecycle';
  import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
  import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
--import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, MainEditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, TitleBarVisibleContext, TitleBarStyleContext, MultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, ActiveCompareEditorOriginalWriteableContext, IsEnabledFileDownloads, IsEnabledFileUploads } from 'vs/workbench/common/contextkeys';
-+import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, MainEditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, TitleBarVisibleContext, TitleBarStyleContext, MultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, ActiveCompareEditorOriginalWriteableContext, IsEnabledFileDownloads, IsEnabledFileUploads, IsEnabledCoderGettingStarted, } from 'vs/workbench/common/contextkeys';
+-import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, MainEditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, TitleBarVisibleContext, TitleBarStyleContext, MultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, ActiveCompareEditorCanSwapContext, IsEnabledFileDownloads, IsEnabledFileUploads } from 'vs/workbench/common/contextkeys';
++import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, MainEditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, TitleBarVisibleContext, TitleBarStyleContext, MultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, ActiveCompareEditorCanSwapContext, IsEnabledFileDownloads, IsEnabledFileUploads, IsEnabledCoderGettingStarted, } from 'vs/workbench/common/contextkeys';
  import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
  import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow, getActiveWindow } from 'vs/base/browser/dom';
  import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-@@ -227,6 +227,7 @@ export class WorkbenchContextKeysHandler
+@@ -228,6 +228,7 @@ export class WorkbenchContextKeysHandler
  		// code-server
  		IsEnabledFileDownloads.bindTo(this.contextKeyService).set(this.environmentService.isEnabledFileDownloads ?? true)
  		IsEnabledFileUploads.bindTo(this.contextKeyService).set(this.environmentService.isEnabledFileUploads ?? true)
