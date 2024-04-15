@@ -58,6 +58,12 @@ main() {
     exit 1
   fi
 
+  # make sure everything is installed because for some reason we are failing
+  yarn install --frozen-lockfile
+  pushd build
+  yarn install --frozen-lockfile
+  popd
+
   # Add the date, our name, links, enable telemetry (this just makes telemetry
   # available; telemetry can still be disabled by flag or setting), and
   # configure trusted extensions (since some, like github.copilot-chat, never
