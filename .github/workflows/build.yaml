@@ -240,7 +240,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: yarn
+        run: yarn --frozen-lockfile
 
       - name: Build code-server
         env:
