@@ -19,22 +19,120 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
  import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
  import { Button } from 'vs/base/browser/ui/button/button';
-@@ -54,7 +54,7 @@ import { IRecentFolder, IRecentWorkspace
+ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+ import { coalesce, equals } from 'vs/base/common/arrays';
+ import { Delayer, Throttler } from 'vs/base/common/async';
+ import { CancellationToken } from 'vs/base/common/cancellation';
+ import { Codicon } from 'vs/base/common/codicons';
+-import { onUnexpectedError } from 'vs/base/common/errors';
+ import { KeyCode } from 'vs/base/common/keyCodes';
+-import { splitRecentLabel } from 'vs/base/common/labels';
+ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+ import { ILink, LinkedText } from 'vs/base/common/linkedText';
+ import { parse } from 'vs/base/common/marshalling';
+@@ -38,7 +35,7 @@ import { IEditorOptions } from 'vs/platf
+ import { IFileService } from 'vs/platform/files/common/files';
+ import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
++import { ILabelService } from 'vs/platform/label/common/label';
+ import { INotificationService } from 'vs/platform/notification/common/notification';
+ import { Link } from 'vs/platform/opener/browser/link';
+ import { IOpenerService } from 'vs/platform/opener/common/opener';
+@@ -47,10 +44,9 @@ import { IQuickInputService } from 'vs/p
+ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+ import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+-import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+-import { IWindowOpenable } from 'vs/platform/window/common/window';
++import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+ import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+-import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
++import { IRecentFolder, IRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
  import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
  import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
  import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
--import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-+import { IsEnabledCoderGettingStarted, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
- import { IEditorOpenContext, IEditorSerializer } from 'vs/workbench/common/editor';
- import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
- import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-@@ -804,6 +804,72 @@ export class GettingStartedPage extends
- 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
- 		);
+@@ -71,7 +67,6 @@ import { IWorkbenchThemeService } from '
+ import { GettingStartedIndexList } from './gettingStartedList';
  
-+		let gettingStartedCoder: HTMLElement = $('.header', {});
-+		if (this.contextService.contextMatchesRules(IsEnabledCoderGettingStarted)) {
-+			gettingStartedCoder = $('.gettingStartedCategory', {},
+ const SLIDE_TRANSITION_TIME_MS = 250;
+-const configurationKey = 'workbench.startupEditor';
+ 
+ export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
+ export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
+@@ -127,7 +122,6 @@ export class GettingStartedPage extends
+ 
+ 	// Ensure that the these are initialized before use.
+ 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
+-	private recentlyOpened!: Promise<IRecentlyOpened>;
+ 	private gettingStartedCategories!: IResolvedWalkthrough[];
+ 
+ 	private currentWalkthrough: IResolvedWalkthrough | undefined;
+@@ -180,7 +174,9 @@ export class GettingStartedPage extends
+ 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
+ 		@IContextKeyService contextService: IContextKeyService,
+ 		@IQuickInputService private quickInputService: IQuickInputService,
++		// @ts-ignore
+ 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
++		// @ts-ignore
+ 		@ILabelService private readonly labelService: ILabelService,
+ 		@IHostService private readonly hostService: IHostService,
+ 		@IWebviewService private readonly webviewService: IWebviewService,
+@@ -230,9 +226,7 @@ export class GettingStartedPage extends
+ 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
+ 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
+ 
+-		this.recentlyOpened = this.workspacesService.getRecentlyOpened();
+ 		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
+-			this.recentlyOpened = workspacesService.getRecentlyOpened();
+ 			rerender();
+ 		}));
+ 
+@@ -770,52 +764,223 @@ export class GettingStartedPage extends
+ 	}
+ 
+ 	private async buildCategoriesSlide() {
+-
+ 		this.categoriesSlideDisposables.clear();
+-		const showOnStartupCheckbox = new Toggle({
+-			icon: Codicon.check,
+-			actionClassName: 'getting-started-checkbox',
+-			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
+-			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+-			...defaultToggleStyles
+-		});
+-		showOnStartupCheckbox.domNode.id = 'showOnStartup';
+-		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"));
+-		const onShowOnStartupChanged = () => {
+-			if (showOnStartupCheckbox.checked) {
+-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
+-				this.configurationService.updateValue(configurationKey, 'welcomePage');
+-			} else {
+-				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
+-				this.configurationService.updateValue(configurationKey, 'none');
+-			}
+-		};
+-		this.categoriesSlideDisposables.add(showOnStartupCheckbox);
+-		this.categoriesSlideDisposables.add(showOnStartupCheckbox.onChange(() => {
+-			onShowOnStartupChanged();
+-		}));
+-		this.categoriesSlideDisposables.add(addDisposableListener(showOnStartupLabel, 'click', () => {
+-			showOnStartupCheckbox.checked = !showOnStartupCheckbox.checked;
+-			onShowOnStartupChanged();
+-		}));
+-
++		
+ 		const header = $('.header', {},
+-			$('h1.product-name.caption', {}, this.productService.nameLong),
+-			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
++			$('h1.product-name.caption', {}, "GIGO DevSpace"),
++			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Learn By Creating"))
++		);
++
++		let nextStepsGigo: HTMLElement = $('.header', {});
++		nextStepsGigo = $('.codeTeacherPlugCategory', {},
 +				$('h2', {
 +					style: 'margin-bottom: 12px',
 +				}, 'Need Some Help'),
@@ -61,7 +159,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
 +							'font-size: 13px',
 +							'color: #dcdee2',
 +						].join(';'),
-+					}, 'Code Teacher is a Magic system built to provide personalized help for every developer. Code Teacher can help you with errors, explain concepts, and help you on your journey to becoming a better developer.'),
++					}, 'Code Teacher is an AI tutor system built to provide personalized help for every developer. Code Teacher can help you with errors, explain concepts, and help you on your journey to becoming a better developer.'),
 +					$('p', {
 +						style: [
 +							'margin: 0',
@@ -217,7 +315,7 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
 +							style: [
 +								'font-size: 14px',
 +							].join(';')
-+						}, 'Need some help? Code Teacher is your personal Magic tutor!'),
++						}, 'Need some help? Code Teacher is your personal AI tutor!'),
 +						$('button', {
 +							style: [
 +								'border-radius: 4px'
@@ -238,17 +336,39 @@ Index: code-server/lib/vscode/src/vs/workbench/contrib/welcomeGettingStarted/bro
  		const leftColumn = $('.categories-column.categories-column-left', {},);
  		const rightColumn = $('.categories-column.categories-column-right', {},);
  
-@@ -839,6 +905,9 @@ export class GettingStartedPage extends
- 				recentList.setLimit(5);
- 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+ 		const startList = this.buildStartList();
+-		const recentList = this.buildRecentlyOpenedList();
++
+ 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
+ 
+-		const footer = $('.footer', {},
+-			$('p.showOnStartup', {},
+-				showOnStartupCheckbox.domNode,
+-				showOnStartupLabel,
+-			));
++		const footer = $('.footer', {});
+ 
+ 		const layoutLists = () => {
+ 			if (gettingStartedList.itemCount) {
+@@ -831,14 +996,11 @@ export class GettingStartedPage extends
+ 		};
+ 
+ 		const layoutRecentList = () => {
+-			if (this.container.classList.contains('noWalkthroughs')) {
+-				recentList.setLimit(10);
++			if (this.container.classList.contains('noWalkthroughs') && this.container.classList.contains('noVideos')) {
+ 				reset(leftColumn, startList.getDomElement());
+-				reset(rightColumn, recentList.getDomElement());
+-			} else {
+-				recentList.setLimit(5);
+-				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
  			}
-+			if (this.contextService.contextMatchesRules(IsEnabledCoderGettingStarted)) {
-+				prepend(rightColumn, gettingStartedCoder)
-+			}
++			prepend(leftColumn, introToGigo)
++			prepend(rightColumn, nextStepsGigo)
  		};
  
  		gettingStartedList.onDidChange(layoutLists);
-@@ -940,87 +1092,6 @@ export class GettingStartedPage extends
+@@ -895,87 +1057,6 @@ export class GettingStartedPage extends
  		this.setSlide('categories');
  	}
  
